@@ -13,7 +13,7 @@ pub mod token;
 pub mod security;
 pub mod advanced;
 
-declare_id!("Cm5y2aab75vj9dpRcyG1EeZNgeh4GZLRkN3BmmRVNEwZ");
+declare_id!("B5E1V3DJsjMPzQb4QyMUuVhESqnWMXVcead4AEBvJB4W");
 
 // Re-export account state structs for use in Account Context structs below
 pub use game::state::Game;
@@ -257,9 +257,21 @@ pub struct StartGame<'info> {
     /// CHECK: PDA derived from computation offset
     #[account(mut)]
     pub computation_account: AccountInfo<'info>,
-    
+
+    /// Sign seed PDA
+    /// CHECK: PDA derived from MXE program
+    pub sign_seed: AccountInfo<'info>,
+
+    /// Staking pool PDA
+    /// CHECK: PDA derived from MXE program
+    pub staking_pool: AccountInfo<'info>,
+
     pub system_program: Program<'info, System>,
-    
+
+    /// Clock sysvar
+    /// CHECK: Clock sysvar account
+    pub clock: AccountInfo<'info>,
+
     // Remaining accounts: PlayerState accounts for all players in order
     // These will be validated and updated during execution
 }

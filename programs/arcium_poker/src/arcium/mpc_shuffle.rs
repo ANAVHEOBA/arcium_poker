@@ -24,31 +24,52 @@ pub struct ShuffleResult {
 pub struct MxeShuffleParams<'info> {
     /// MXE program account
     pub mxe_program: Option<AccountInfo<'info>>,
-    
+
+    /// MXE account (persistent MXE account PDA)
+    pub mxe_account: Option<AccountInfo<'info>>,
+
     /// Computation definition account
     pub comp_def: Option<AccountInfo<'info>>,
-    
+
     /// Mempool account for queueing computation
     pub mempool: Option<AccountInfo<'info>>,
-    
+
     /// Cluster account
     pub cluster: Option<AccountInfo<'info>>,
-    
+
     /// Computation account (to be created/used)
     pub computation_account: Option<AccountInfo<'info>>,
-    
+
     /// Authority (signer)
     pub authority: Option<AccountInfo<'info>>,
-    
+
+    /// Sign seed PDA
+    pub sign_seed: Option<AccountInfo<'info>>,
+
+    /// Executing pool PDA
+    pub executing_pool: Option<AccountInfo<'info>>,
+
+    /// Staking pool PDA
+    pub staking_pool: Option<AccountInfo<'info>>,
+
+    /// System program
+    pub system_program: Option<AccountInfo<'info>>,
+
+    /// Clock sysvar
+    pub clock: Option<AccountInfo<'info>>,
+
     /// Player entropy (encrypted)
     pub encrypted_entropy: Vec<[u8; 32]>,
-    
+
     /// Computation offset (unique ID)
-    pub computation_offset: [u8; 8],
-    
+    pub computation_offset: u64,
+
+    /// Computation definition offset
+    pub comp_def_offset: u32,
+
     /// Player pubkeys
     pub player_pubkeys: Vec<Pubkey>,
-    
+
     /// Game ID
     pub game_id: u64,
 }
@@ -117,8 +138,10 @@ pub fn mpc_shuffle_deck_with_mxe<'info>(
     msg!("[ARCIUM MPC] Players participating: {}", params.player_pubkeys.len());
     
     // Check if MXE accounts are provided
-    if let (Some(mxe_program), Some(comp_def), Some(mempool), Some(cluster), Some(computation_account), Some(authority)) = 
-        (&params.mxe_program, &params.comp_def, &params.mempool, &params.cluster, &params.computation_account, &params.authority) {
+    if let (Some(mxe_program), Some(mxe_account), Some(comp_def), Some(mempool), Some(cluster), Some(computation_account), Some(authority),
+            Some(sign_seed), Some(executing_pool), Some(staking_pool), Some(system_program), Some(clock)) =
+        (&params.mxe_program, &params.mxe_account, &params.comp_def, &params.mempool, &params.cluster, &params.computation_account, &params.authority,
+         &params.sign_seed, &params.executing_pool, &params.staking_pool, &params.system_program, &params.clock) {
         
         msg!("[ARCIUM MPC] Using REAL MPC via MXE program");
         msg!("[ARCIUM MPC] MXE Program: {}", mxe_program.key());
@@ -162,17 +185,23 @@ pub fn mpc_shuffle_deck_with_mxe<'info>(
         
         // Queue MPC computation via CPI
         use super::integration::queue_mxe_computation;
-        
+
         let computation_id = queue_mxe_computation(
             mxe_program,
-            comp_def,
+            authority,
+            sign_seed,
+            computation_account,
+            mxe_account,
+            executing_pool,
             mempool,
+            comp_def,
             cluster,
-            computation_account, // Actual computation account from context
-            authority, // Actual authority signer from context
-            0, // shuffle_deck instruction index
-            &encrypted_inputs,
+            staking_pool,
+            system_program,
+            clock,
             params.computation_offset,
+            params.comp_def_offset,
+            &encrypted_inputs,
         )?;
         
         msg!("[ARCIUM MPC] Shuffle queued successfully!");
@@ -284,17 +313,24 @@ pub fn mpc_shuffle_deck(params: ShuffleParams) -> Result<ShuffleResult> {
     // Convert to new format without MXE accounts (mock mode)
     let mxe_params = MxeShuffleParams {
         mxe_program: None,
+        mxe_account: None,
         comp_def: None,
         mempool: None,
         cluster: None,
         computation_account: None,
         authority: None,
+        sign_seed: None,
+        executing_pool: None,
+        staking_pool: None,
+        system_program: None,
+        clock: None,
         encrypted_entropy: params.player_entropy.clone(),
-        computation_offset: params.game_id.to_le_bytes(),
+        computation_offset: params.game_id,
+        comp_def_offset: 0,
         player_pubkeys: params.player_pubkeys.clone(),
         game_id: params.game_id,
     };
-    
+
     mpc_shuffle_deck_with_mxe(mxe_params)
 }
 
@@ -357,62 +393,9 @@ fn perform_integrated_shuffle(
 // MXE INTEGRATION HELPERS
 // ============================================================================
 
-/// Helper: Create MXE instruction data
-fn create_mxe_instruction(
-    ix_index: u8,
-    encrypted_inputs: Vec<[u8; 32]>,
-    computation_offset: [u8; 8],
-) -> Result<Vec<u8>> {
-    // Serialize MXE instruction format
-    let mut data = Vec::new();
-    data.push(ix_index);
-    data.extend_from_slice(&computation_offset);
-    
-    for input in encrypted_inputs {
-        data.extend_from_slice(&input);
-    }
-    
-    Ok(data)
-}
-
-/// Helper: Invoke MXE via CPI
-fn invoke_mxe_computation<'a>(
-    mxe_program: &AccountInfo<'a>,
-    ix_data: &[u8],
-    accounts: &[AccountInfo<'a>],
-) -> Result<()> {
-    // Create instruction
-    let ix = anchor_lang::solana_program::instruction::Instruction {
-        program_id: *mxe_program.key,
-        accounts: accounts.iter().map(|a| {
-            anchor_lang::solana_program::instruction::AccountMeta {
-                pubkey: *a.key,
-                is_signer: a.is_signer,
-                is_writable: a.is_writable,
-            }
-        }).collect(),
-        data: ix_data.to_vec(),
-    };
-    
-    // Invoke via CPI
-    let account_infos: Vec<AccountInfo> = std::iter::once(mxe_program.clone())
-        .chain(accounts.iter().cloned())
-        .collect();
-    
-    invoke(&ix, &account_infos)?;
-    
-    Ok(())
-}
-
-fn generate_session_id_from_offset(offset: [u8; 8]) -> [u8; 32] {
-    let mut session_id = [0u8; 32];
-    session_id[..8].copy_from_slice(&offset);
-    // Fill rest with derived values
-    for i in 8..32 {
-        session_id[i] = offset[i % 8].wrapping_mul(i as u8);
-    }
-    session_id
-}
+// Note: These helper functions were removed as they're unused.
+// The actual MXE integration is handled in the main mpc_shuffle_deck_with_mxe function
+// and integration.rs module.
 
 // ============================================================================
 // MOCK IMPLEMENTATIONS (FOR TESTING WITHOUT MXE)

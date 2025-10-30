@@ -1,5 +1,8 @@
 import * as anchor from "@coral-xyz/anchor";
 
+// Re-export MXE crypto helpers
+export * from "./helpers/mxe_crypto";
+
 /**
  * Helper function to derive Game PDA
  */
@@ -9,7 +12,7 @@ export function getGamePda(
   gameId: number | anchor.BN
 ): [anchor.web3.PublicKey, number] {
   const gameIdBn = typeof gameId === "number" ? new anchor.BN(gameId) : gameId;
-  
+
   return anchor.web3.PublicKey.findProgramAddressSync(
     [
       Buffer.from("game"),

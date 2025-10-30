@@ -1,4 +1,5 @@
 // Arcium MPC integration module - Module 2 (CRITICAL)
+pub mod types;
 pub mod mpc_shuffle;
 pub mod mpc_deal;
 pub mod mpc_reveal;

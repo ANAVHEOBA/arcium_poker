@@ -45,17 +45,27 @@ pub fn handler(
     use crate::arcium::mpc_shuffle::MxeShuffleParams;
     
     // Generate computation offset (unique ID for this computation)
-    let computation_offset = game.game_id.to_le_bytes();
-    
+    let computation_offset = game.game_id;
+
+    // Computation definition offset (from init-mxe)
+    let comp_def_offset = 1u32; // Using offset 1 (initialized in MXE)
+
     let mxe_shuffle_params = MxeShuffleParams {
         mxe_program: Some(ctx.accounts.mxe_program.clone()),
+        mxe_account: Some(ctx.accounts.mxe_account.clone()),
         comp_def: Some(ctx.accounts.comp_def_account.clone()),
         mempool: Some(ctx.accounts.mempool_account.clone()),
         cluster: Some(ctx.accounts.cluster_account.clone()),
         computation_account: Some(ctx.accounts.computation_account.clone()),
         authority: Some(ctx.accounts.authority.to_account_info()),
+        sign_seed: Some(ctx.accounts.sign_seed.clone()),
+        executing_pool: Some(ctx.accounts.executing_pool_account.clone()),
+        staking_pool: Some(ctx.accounts.staking_pool.clone()),
+        system_program: Some(ctx.accounts.system_program.to_account_info()),
+        clock: Some(ctx.accounts.clock.clone()),
         encrypted_entropy: player_entropy.clone(),
         computation_offset,
+        comp_def_offset,
         player_pubkeys: players.clone(),
         game_id: game.game_id,
     };
@@ -82,15 +92,20 @@ pub fn handler(
     
     // Deal 2 hole cards to each player (encrypted via Arcium MPC)
     let mut card_index = 0u8;
-    
+
     for (i, player_account) in ctx.remaining_accounts.iter().enumerate() {
         if i >= game.player_count as usize {
             break;
         }
-        
+
         let player_pubkey = game.players[i];
         msg!("[DEALING] Dealing to player {} at seat {}", player_pubkey, i);
-        
+
+        // Borrow and deserialize player state to update encrypted_hole_cards
+        let mut data = player_account.try_borrow_mut_data()?;
+        let mut player_data = &data[..];
+        let mut player_state = PlayerState::try_deserialize(&mut player_data)?;
+
         // Deal hole cards using Arcium MPC
         for hole_card_num in 0..HOLE_CARDS {
             let deal_params = DealParams {
@@ -99,9 +114,12 @@ pub fn handler(
                 session_id: shuffle_result.session_id,
                 game_id: game.game_id,
             };
-            
+
             let encrypted_card = mpc_deal_card(deal_params)?;
-            
+
+            // ✅ FIX: Store encrypted card in PlayerState
+            player_state.encrypted_hole_cards[hole_card_num as usize] = encrypted_card.encrypted_index;
+
             msg!(
                 "[DEALING] Card {}/{} dealt to seat {} (encrypted index: {})",
                 hole_card_num + 1,
@@ -109,9 +127,15 @@ pub fn handler(
                 i,
                 encrypted_card.encrypted_index
             );
-            
+
             card_index += 1;
         }
+
+        // ✅ FIX: Serialize updated player state back to account
+        let mut writer = &mut data[..];
+        player_state.try_serialize(&mut writer)?;
+
+        msg!("[DEALING] Updated PlayerState for seat {} with encrypted hole cards", i);
     }
     
     // ========================================================================

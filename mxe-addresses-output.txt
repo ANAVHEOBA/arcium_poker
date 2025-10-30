@@ -1,0 +1,132 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                   ARCIUM MXE ACCOUNT ADDRESSES                               ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+📝 Configuration:
+   • Program ID:        B5E1V3DJsjMPzQb4QyMUuVhESqnWMXVcead4AEBvJB4W
+   • MXE Program:       BKck65TgoKRokMjQM3datB9oRwJ8rAj2jxPXvHXUvcL6
+   • Cluster Offset:    1078779259
+   • Comp Def Offset:   1
+
+🔑 Computing PDA addresses...
+
+✅ MXE Account:
+   Address: 3XCqEWHvKCdzJyuDAJGwTdQqwZXDmezTfM7iwPHv9xES
+   Bump:    255
+
+✅ Computation Definition:
+   Address: HsMC9y9HZvpvDSqgc9mC8tkhuUNhi17WXisrthYJrihc
+   Bump:    255
+
+✅ Mempool:
+   Address: 79DAsZwMCyfC3Gq3VmFDC3HhBwcpHjgMbTNBs9cMTsop
+   Bump:    255
+
+✅ Executing Pool:
+   Address: CrGJx4qmyM4vkAkYfYZsSWrAxBD2RXjW18JP7sMSRzgA
+   Bump:    253
+
+✅ Cluster:
+   Address: XEDRk3i1BK9vwU4tnaBQRG2bi77QCxtBHhsbSLqXD6z
+   Bump:    255
+
+✅ Sign Seed:
+   Address: 6WBdYnro9jRkWhtjSMEmQ2W8MiRKMCMyPvVhZH2qkPtM
+   Bump:    255
+
+✅ Staking Pool:
+   Address: xVwyypubQUe6rrgKPXXZDSDbJzRZH67cSKgdsGaE6oD
+   Bump:    252
+
+📝 Note about Computation Account:
+   The computation account is derived PER GAME using:
+   - Seeds: ["computation", mxeAccount, comp_offset]
+   - comp_offset = game_id (unique for each game)
+
+   Your frontend should derive it dynamically:
+
+   const [computationAccount] = PublicKey.findProgramAddressSync(
+     [
+       Buffer.from("computation"),
+       mxeAccount.toBuffer(),
+       new anchor.BN(gameId).toArrayLike(Buffer, "le", 8)
+     ],
+     MXE_PROGRAM
+   );
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    FRONTEND INTEGRATION CODE                                 ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Copy this into your frontend code (e.g., hooks/useStartGame.ts):
+
+```typescript
+import { PublicKey } from "@solana/web3.js";
+import * as anchor from "@coral-xyz/anchor";
+
+// Arcium MXE Configuration
+const MXE_PROGRAM = new PublicKey("BKck65TgoKRokMjQM3datB9oRwJ8rAj2jxPXvHXUvcL6");
+const PROGRAM_ID = new PublicKey("B5E1V3DJsjMPzQb4QyMUuVhESqnWMXVcead4AEBvJB4W");
+const CLUSTER_OFFSET = 1078779259;
+
+// Static MXE accounts (computed once)
+const MXE_ACCOUNT = new PublicKey("3XCqEWHvKCdzJyuDAJGwTdQqwZXDmezTfM7iwPHv9xES");
+const COMP_DEF = new PublicKey("HsMC9y9HZvpvDSqgc9mC8tkhuUNhi17WXisrthYJrihc");
+const MEMPOOL = new PublicKey("79DAsZwMCyfC3Gq3VmFDC3HhBwcpHjgMbTNBs9cMTsop");
+const EXECUTING_POOL = new PublicKey("CrGJx4qmyM4vkAkYfYZsSWrAxBD2RXjW18JP7sMSRzgA");
+const CLUSTER = new PublicKey("XEDRk3i1BK9vwU4tnaBQRG2bi77QCxtBHhsbSLqXD6z");
+const SIGN_SEED = new PublicKey("6WBdYnro9jRkWhtjSMEmQ2W8MiRKMCMyPvVhZH2qkPtM");
+const STAKING_POOL = new PublicKey("xVwyypubQUe6rrgKPXXZDSDbJzRZH67cSKgdsGaE6oD");
+
+// Dynamic computation account (per game)
+function getComputationAccount(gameId: number): PublicKey {
+  const [computationAccount] = PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("computation"),
+      MXE_ACCOUNT.toBuffer(),
+      new anchor.BN(gameId).toArrayLike(Buffer, "le", 8)
+    ],
+    MXE_PROGRAM
+  );
+  return computationAccount;
+}
+```
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                          JSON OUTPUT                                         ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+{
+  "programId": "B5E1V3DJsjMPzQb4QyMUuVhESqnWMXVcead4AEBvJB4W",
+  "mxeProgram": "BKck65TgoKRokMjQM3datB9oRwJ8rAj2jxPXvHXUvcL6",
+  "clusterOffset": 1078779259,
+  "compDefOffset": 1,
+  "accounts": {
+    "mxeAccount": "3XCqEWHvKCdzJyuDAJGwTdQqwZXDmezTfM7iwPHv9xES",
+    "compDef": "HsMC9y9HZvpvDSqgc9mC8tkhuUNhi17WXisrthYJrihc",
+    "mempool": "79DAsZwMCyfC3Gq3VmFDC3HhBwcpHjgMbTNBs9cMTsop",
+    "executingPool": "CrGJx4qmyM4vkAkYfYZsSWrAxBD2RXjW18JP7sMSRzgA",
+    "cluster": "XEDRk3i1BK9vwU4tnaBQRG2bi77QCxtBHhsbSLqXD6z",
+    "signSeed": "6WBdYnro9jRkWhtjSMEmQ2W8MiRKMCMyPvVhZH2qkPtM",
+    "stakingPool": "xVwyypubQUe6rrgKPXXZDSDbJzRZH67cSKgdsGaE6oD"
+  }
+}
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                            NEXT STEPS                                        ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+1. ✅ Copy the addresses above into your frontend code
+
+2. Initialize the computation definition (if not done):
+   $ arcium init-comp-def \
+       --mxe-account 3XCqEWHvKCdzJyuDAJGwTdQqwZXDmezTfM7iwPHv9xES \
+       --comp-def-offset 1 \
+       --keypair-path ~/.config/solana/id.json \
+       --url https://api.devnet.solana.com
+
+3. Update your frontend to use these addresses
+
+4. Test the start game function!
+
+═══════════════════════════════════════════════════════════════════════════════
